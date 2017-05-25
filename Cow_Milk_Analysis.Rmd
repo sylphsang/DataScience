@@ -1,0 +1,240 @@
+---
+title: 'Cow Milk Analysis '
+output:
+ # pdf_document
+  html_notebook 
+ # html_document
+---
+
+#Frame
+Given cow milk production from 1962-1975, explored the data in following manner.
+
+   1. Visualize the data 
+   2. visualize the seasonal trend if exists
+   3. Check the stationarity of data
+   4. Use ARIMA model to predict the trend for next five years
+   5. Plot the forecast data to give the overview of the trend 
+
+
+....
+
+
+#Acquire 
+
+Data is taken from the https://datamarket.com
+
+It contains the monthly milk production  data info 
+
+
+```{r}
+df=read.csv("monthly-milk-production-pounds-p.csv",header=TRUE,stringsAsFactors=F)
+str(df)
+head(df)
+```
+Insigths:
+ --Data is given monthly quantity of milk from 1962-1975
+ --There is no NA or empty data
+ --last two rows is not valid as it is just statement written at the end of csv file
+
+#Refine 
+
+*************************************************************************
+        Rename the column name as it is big and NA rows from the tail
+***************************************************************************
+
+```{r}
+  
+colnames(df)<-c("Month","Quantity")
+head(df)
+
+#remove the last two row as it is NA 
+df<-head(df,-1)
+tail(df)
+
+
+```
+
+Insights
+-- valid /clean data with renamed column name month and Quantity
+
+#Explore 
+
+*************************************************************************************
+          create time series with the given data frame for further prediction of data
+**************************************************************************************
+
+```{r}
+
+library(tseries)
+library(xts)  #extended time series 
+
+
+ts_milkPr <- xts(df[,-1],order.by =as.yearmon(df$Month,"%Y-%m"))
+
+ts_milkPr  #display the data of the time series 
+
+#plot the time series to see the trend with the mean
+plot(ts_milkPr,xlab='year' ,ylab='milk quantity',main='Milk Production')
+abline(a=mean(ts_milkPr),b=0, col = "red")
+
+
+```
+
+
+Insights
+
+--From the above plot it is visible that the data has seasonal trending 
+--seasonal trending is in additive in nature as it is not growing with level of time .
+--there is no visible outliers
+
+
+**************************************************************************
+        Break the data into trend,seasonal variation and irregular component 
+***************************************************************************
+
+```{r}
+
+data_decomposed <- stl(ts_milkPr, t.window=50, s.window='periodic', robust=TRUE)
+
+data_decomposed
+plot(data_decomposed)
+
+
+```
+Insigths:
+--from the above plot can see that trend ,seasonal data ,remainder as compared to original data 
+--trend is growing but at the end it becomes constant
+--seaonal shows a peak in production in the mid of every year.
+
+#Transform
+
+***************************************************************************
+        Retrieve seasonally adjusted data 
+***************************************************************************
+
+```{r}
+library(forecast)
+
+data_deseasonal=seasadj(data_decomposed)
+data_deseasonal
+
+```
+Insights:
+--above data is without seaonal trend component
+--this will be used for further prediction
+
+
+*********************************************************
+       Check the stationarity of the data
+*********************************************************
+
+```{r}
+#Dicky Fuller test
+
+adf.test(ts_milkPr)
+
+```
+Insights:
+
+--from the above result ,given time series is stationary as p-value is very small hence non stationary hypothesis is rejected and given data is stationary
+
+****************************************************************************
+          Visualize the series ACF/PACF 
+******************************************************************************
+
+```{r}
+acf(ts_milkPr)
+pacf(ts_milkPr)
+
+```
+
+from the ACF we can see that spike at 13 lag shows that there is strong seasonality
+-- spike peak at 1 and 13
+-- ACF plot cuts off after the first lag hence p=0 and pacf q also=0
+
+*******************************************************************************
+        reiterate the model to find the proper order AR and MA
+*********************************************************************************
+```{r}
+data_d1 = diff(data_deseasonal, differences = 1)
+plot(data_d1)  #plot the difference
+
+adf.test(data_d1, alternative = "stationary")
+```
+Insights
+---No visible string trend ,data is near zero
+
+
+*************************************************************
+                      AR/MA
+*****************************************************************
+```{r}
+Acf(data_d1,main="ACF of D1")
+Pacf(data_d1,main="Pacf of D1")
+
+```
+
+
+
+#Model
+
+********************************************************
+         Fit AUTO Arima Model 
+********************************************************
+```{r}
+
+#auto.arima model take the AR,MA,D values itself
+
+fit<-auto.arima(data_deseasonal,seasonal = FALSE)
+fit
+
+tsdisplay(residuals(fit), lag.max=15, main='Seasonal Model Residuals')
+
+
+```
+
+Insights:
+From the above results
+--Residuals plots show a smaller error range, more or less centered around 0
+--AIC is smaller for the 2,1,2 range hence predict the data with this model
+
+************************************************************
+            Forecast the data for next five year
+***********************************************************
+
+```{r}
+fcast<-forecast(fit,h=12*5)
+plot(fcast)
+
+```
+Insights: 
+--From the above model we can see the forecast in the blue line which is having the growing trend
+
+***********************************************************
+           Forecasting with seasonal effect
+*************************************************************
+
+```{r}
+fit_season=auto.arima(data_deseasonal,seasonal = TRUE)
+fit_season
+
+tsdisplay(residuals(fit_season), lag.max=15, main='Seasonal Model Residuals')
+
+
+```
+forcast with the seasonal data
+
+```{r}
+
+fcast_season<-forecast(fit_season,h=12*5)
+plot(fcast_season)
+```
+
+insights
+: from the above forcast plot 80% confidence limits shaded in darker blue, and  95% in lighter blue.
+: Forecast of data with seasonal trend is having small difference as comapred to forecast of data     without seasonal trend
+
+
+
+
+
