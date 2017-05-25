@@ -1,0 +1,290 @@
+---
+title: "Oniona DateWise Analysis "
+output: html_notebook
+---
+
+
+#Frame
+Question to be answered
+1.which city has the highest sale of onion in a year?
+2.predict the price of onion for the next 30 days?
+
+
+#Acquire
+As per question scrape data from NHRFD on Datewise basis
+taken 2016 datewise data 
+--converted the date into .csv format and then reading it in dataframe
+
+
+```{r}
+############# reading the data from html file##############################
+#library(rvest)
+#Read the data from the file 
+#pg.out<-read_html("DailyWiseMarketArrivals.htm")
+#pg.out %>%
+ #    html_node('#dnn_ctr966_DailyWiseMarketArrivals_GridView1') %>%
+  #   html_table()
+# df <-pg.table
+############################################################################
+
+########################## reading the data from .csv/xls files########################
+
+df=read.csv("DailyWiseMarketArrivals.csv",header=TRUE)
+str(df)
+
+
+
+
+
+
+```
+
+#Refine
+Refine the received raw data into fine data for the analysis
+
+Step1:
+*****************************************************************************
+-Rename the column name as it is long so assigning new name to column
+*****************************************************************************
+```{r}
+newnames<-c('date','market','quantity','pricemin','pricemax','pricemod')
+colnames(df)<-newnames
+head(df)
+
+```
+
+Step2:
+*****************************************************************
+-Remove the last row as it contains the total of all the  data 
+******************************************************************
+
+
+```{r}
+library(dplyr)
+
+df<-df %>%
+  filter(market!='Total') 
+tail(df)
+
+
+```
+
+Step3:
+**************************************************************
+-change the data type of the columns
+**************************************************************
+```{r}
+
+library(dplyr)
+
+df$date<-as.Date(df$date, format = "%d/%b/%Y")  #date format date-month-year
+df$market<-as.character(df$market)
+df$pricemin<-as.numeric(as.character(df$pricemin))
+df$pricemax<-as.numeric(as.character(df$pricemax))
+df$pricemod<-as.numeric(as.character(df$pricemod))
+
+str(df)
+
+
+
+```
+step4:
+
+*************************************************************
+--Retrive  the state name as city and state name is combined
+*************************************************************
+```{r}
+
+library(tidyr)
+
+str(df)
+
+unique(df$market)
+df<-df %>%
+    mutate(market1=market )%>%
+    separate(market1,c('city','state'),sep="\\(")
+
+#remove the last ")" from the state
+df$state<-substr(df$state,1,nchar(df$state)-1) #removing thelast ) from state
+
+str(df)
+```
+step5:
+*********************************************************************************
+--update the state code where state code is not mentioned hardcoding the value
+*********************************************************************************
+
+```{r}
+head(df)
+
+df$state=ifelse(df$city=='BANGALORE','KNT',df$state)
+df$state=ifelse(df$city=='CHENNAI','TN',df$state)
+df$state=ifelse(df$city=='DELHI','DL',df$state)
+df$state=ifelse(df$city=='BHOPAL','MP',df$state)
+df$state=ifelse(df$city=='CHANDIGARH','CH',df$state)
+df$state=ifelse(df$city=='GUWAHATI','AS',df$state)
+df$state=ifelse(df$city=='HYDERABAD','TELANGANA',df$state)
+df$state=ifelse(df$city=='JAIPUR','RAJ',df$state)
+df$state=ifelse(df$city=='JAMMU','JK',df$state)
+df$state=ifelse(df$city=='KOLKATA','WB',df$state)
+df$state=ifelse(df$city=='LUCKNOW','UP',df$state)
+df$state=ifelse(df$city=='MUMBAI','MS',df$state)
+df$state=ifelse(df$city=='NAGPUR','MS',df$state)
+df$state=ifelse(df$city=='PATNA','BHR',df$state)
+df$state=ifelse(df$city=='SHAHJAHANPUR','UP',df$state)
+df$state=ifelse(df$city=='TIPHRA','CG',df$state)
+df$state=ifelse(df$city=='BANGALORE','KNT',df$state)
+
+   
+
+```
+
+
+Step6:
+***************************************************************************************
+--function to convert the state code into the state name and add the column to dataframe
+****************************************************************************************
+
+```{r}
+
+stateFromStateCode <-function(x)
+{
+  st.codes<-data.frame(
+  
+    state=as.factor(c("AN", "AP", "AR", "AS", "BHR", "CH", "CG", "DN", "DD", "DL",    "GA","GUJ","HR","HP","JK","JH","KNT","KER","LD","MP","MS","MN","ML","MZ","NL","OD","PY","PB","RAJ","SK","TN","TELANGANA","TR","UK","UP","WB")),
+    
+    fullName=as.factor(c("Andaman and Nicobar Islands","Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chandigarh","Chhattisgarh","Dadra and Nagar Haveli","Daman and Diu","Delhi","Goa","Gujrat","Haryana","Himachal Pradesh","Jammu and Kashmir","Jharkhand","Karnataka","Kerala","Lakshadweep","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Puducherry","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttarakhand","Uttar Pradesh","West Bengal"))
+    
+                         )
+  
+   #create an  data.frame of state codes from source column
+    st.x<-data.frame(state=x)
+    #match source codes with codes from 'st.codes' local variable and use to return the full state name
+    refac.x<-st.codes$full[match(st.x$state,st.codes$state)]
+    #return the full state names in the same order in which they appeared in the original source
+    return(refac.x)
+   
+}
+df$StateName<-stateFromStateCode(df$state)
+
+```
+
+
+
+#Transform
+*****************************************************************
+--find the maximum sales quantity by grouping the data together based on state
+****************************************************************
+```{r}
+# change the data type of statename
+
+df$StateName<-as.character(df$StateName)
+# sum the quantity of state wise
+
+dfState <-df %>%
+  group_by(StateName) %>%
+  summarise(quantity_state=sum(quantity)) %>%
+  arrange(desc(quantity_state)) 
+  
+#taking only first 6 date  
+
+dfState <- head(dfState)
+
+
+
+```
+
+#Explore
+*******************************************************************
+--Find the satate having the maximum sales quantity by histograph
+*******************************************************************
+
+```{r}
+library(ggplot2)
+statePlot<-ggplot(dfState)+
+aes(reorder(StateName,quantity_state),weight=quantity_state) +
+geom_bar()+
+  coord_flip()
+
+library(plotly)
+ggplotly(statePlot)
+
+
+```
+step2:
+*************************************************************
+--show the value in the map
+*************************************************************
+
+
+```{r}
+library(ggmap)
+#geocode("KNT
+#dfState<- dfState %>%
+ #         filter(state!="NA")
+geo<-geocode(dfState$StateName)
+str(geo)
+dfStateGeo<-bind_cols(dfState,geo)
+ggplot(dfStateGeo) +
+  aes(lon,lat,size=quantity_state,color=StateName) +
+  geom_point()+
+ coord_map()
+map<-get_map("India",maptype = "watercolor",source = "stamen",zoom=5)
+ggmap(map)
+
+ggmap(map)+geom_point(data=dfStateGeo,aes(lon,lat,size=quantity_state/1000,color=StateName))
+
+
+```
+
+#transform 2
+****************************************************************
+---since MS(Maharastra data is maximum one,so predict the price)
+*****************************************************************
+
+```{r}
+dim(df)
+
+dfMaharastra<-df %>% 
+  filter(StateName =="Maharashtra")
+#ggplot(dfMaharastra)+aes(date,pricemin,color=state)+geom_line()
+
+dfTall <- dfMaharastra %>%
+        gather("priceType","priceValue",4:6)
+
+head(dfTall)
+ggplot(dfTall) +
+  aes(date,priceValue,color=priceType) +geom_line()
+
+#head(dfTall)
+
+```
+
+#Model 
+*****************************************************
+---forcast the price max for the next 30 days  
+********************************************************
+
+```{r}
+
+ts <- df %>%
+    filter (StateName=="Maharashtra") %>%
+    select(date,pricemax)
+
+
+#taking first 200 data otherwise data will be more
+ts<-head(ts,200)
+colnames(ts)<-c('ds','y')
+
+library(prophet)
+library(Rcpp)
+m <- prophet(ts)
+
+future<-make_future_dataframe(m,periods = 30)
+forcast <-predict(m,future) 
+head(forcast)
+plot(m,forcast)
+
+
+```
+

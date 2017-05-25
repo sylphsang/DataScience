@@ -1,0 +1,319 @@
+---
+title: "India Health Care  Center Analysis"
+output: html_notebook
+---
+
+#Frame
+Given Health Care data explored in following manner.
+
+1.Overall India Health Analysis
+2.State wise presentation of the data
+etc..   fill as when required
+
+
+#Acquire
+
+data is scrapped from the https://data.gov.in/
+
+Insight :
+It conatins the number of state-wise and district-wise availability of Sub-Centres, Primary Health Centres, Community Health Centres, Sub Divisional Hospitals and District hospitals In India till march 2016.
+
+Following Abbreviations is used for the following
+
+Primary Health Centers: PHC
+Community Health Centers :CHC
+Sub divisional hospitals : SDH
+District Hospital : DH
+SubCenters
+
+
+
+```{r}
+
+
+##### reading the data from .csv/xls files########################
+
+df=read.csv("District-wise_Health_Centres_March_2016.csv",header=TRUE)
+str(df)
+
+
+
+
+
+
+```
+
+Insigths
+1. From the above table no missing value and NA Values
+2. 0 value is present if corresponding health care doesnt present
+3. All the columns contains the data as mentioned in the data overview
+4. column name is too long and needs to be renamed for the further analysis
+
+
+
+#Refine 
+
+Step1:
+*************************************************************
+Rename the column name as it is very long
+************************************************************
+
+```{r}
+
+newcolnames<-c('S.No.','states','District','#SubCentres','#PHC','#CHC','#SDH','#DH')
+colnames(df)<-newcolnames
+head(df)
+
+
+
+```
+
+Insights:
+
+From the above data , needs to change the data type of the first three column as it is factor 
+
+
+Step2:
+****************************************************************
+Change the Data Type of the column
+****************************************************************
+
+```{r}
+
+
+df$S.No.<- as.numeric(as.character(df$S.No.))
+df$states<-as.character(df$states)
+df$District<-as.character(df$District)
+
+
+#check the kind of data it is storing  
+head(df,50)
+tail(df,50)
+
+
+```
+
+Insights
+
+1. Each states contain district-wise data as well as contain the total state wise  data also
+2. last row contains the all india total data 
+
+......Add as and when required 
+
+
+#Transform
+
+.....needs to be done 
+
+
+#Explore 
+1. Visualise the All India  data in the pie chart to give the overall idea of the different type of health centers 
+
+```{r}
+
+library(dplyr)
+library(ggplot2)
+#retrive the last row of data frame which contain the all india health centers
+tail(df,1,header=TRUE)
+
+
+dc<- tail(df,1)
+dat <- as.data.frame(t(dc))
+      
+
+
+#take only last  five rows of the dataframe
+dat <-tail(dat,5)
+dat
+dat$type<-c('#SubCenters','#PHC','#CHC','#SDH','#DH')
+
+dat <-dat[,c(2,1)]
+
+#assign the column names 
+colnames(dat)<-c("HealthCenterType","TotalCount")
+
+#convert the column data type as integer from factor
+dat$TotalCount=as.numeric(as.character(dat$TotalCount))
+
+dat
+
+#Pie Chart
+dat$frac=dat$TotalCount/sum(dat$TotalCount)
+
+dat
+dat = dat[order(dat$frac),]
+
+dat$ymax = cumsum(dat$frac)
+dat$ymin = c(0, head(dat$ymax, n=-1))
+
+#p2 = ggplot(dat, aes(fill=HealthCenterType, ymax=ymax, ymin=ymin, xmax=4,min=3))+
+ #    geom_rect(colour="grey30") +
+  #   coord_polar(theta="y") +
+   #  xlim(c(0, 4)) 
+ #    theme_bw() +
+ #    theme(panel.grid=element_blank()) +
+ #    theme(axis.text=element_blank()) +
+ #    theme(axis.ticks=element_blank()) +
+  #   labs(title="Customized ring plot")
+
+dchart=ggplot(dat) + geom_rect(aes(fill=HealthCenterType, ymax=ymax, ymin=ymin, xmax=4, xmin=3)) +
+coord_polar(theta="y") + xlim(c(1, 4))
+
+
+dchart+  geom_label(aes(label=paste(as.integer(frac*100),"%"),x=3.5,y=(ymin+ymax)/2),inherit.aes = TRUE, show.legend = FALSE)
+
+dat
+```
+
+
+Insigths
+From the above we can see that in india subcenter are maximum and District hospital are least 
+..to be done the label properly on donut chart  as label are not 
+
+
+Step2:
+1.find if there is relation between number size of the stat and the number of total health care center
+2. More number of district depicts the size of the state.
+3. Add one more column for  number of district
+4. One more column for the total number of health center in particular state
+
+```{r}
+
+library(dplyr)
+
+#select only s.no states ,#SubCenters,#PHC,#CHC,#SDH,#DH and create a new data frame FOR statewise report 
+df_StateWiseData <-df[,c("states","#SubCentres","#PHC","#CHC","#SDH","#DH")]
+
+#Add the new column district having value 1 to get the number of district 
+df_StateWiseData$District <- rep(1,nrow(df_StateWiseData))
+
+df_StateWiseData <- df_StateWiseData %>%
+                    group_by(states) %>%
+                    summarise_each(funs(sum))
+                      
+                  
+                     
+
+
+
+                    
+
+  df_StateWiseData <- df_StateWiseData %>%
+                      filter(states!="All India/ Total")
+  
+  #reorder the column by changing the index 
+
+df_StateWiseData<-  df_StateWiseData[,c(1,7,2,3,4,5,6)]
+
+head(df_StateWiseData,20)
+
+
+```
+
+
+Step2: Find the total number of Health center in a states ,add one extra column which will tell the total number of states.
+
+
+```{r}
+
+df_StateWiseData$total_HealthCenter <- df_StateWiseData$`#SubCentres` +
+                                       df_StateWiseData$`#PHC`   +
+                                       df_StateWiseData$`#CHC` +
+                                       df_StateWiseData$`#SDH` +
+                                       df_StateWiseData$`#DH`
+
+head(df_StateWiseData,20)
+         
+  
+```
+
+Step3:Find the relation if number of health center is depending on the number of district
+1. Draw the scatter plot  
+
+```{r}
+
+library(ggplot2)
+#data for regression  district and totalHealthCenter
+
+df_reg <-df_StateWiseData[,c(2,8)]
+
+#attach(df_StateWiseData)
+#df_StateWiseData %>%
+#                 plot(total_HealthCenter,District, main = "HealthCenter in India",xlab = #"Number of                     District",ylab = "total_HealthCenter",
+#
+df_reg
+df_reg <-df_reg[order(District),]
+
+df_reg
+
+
+#scatter diagram
+
+plot(df_reg$District,df_reg$total_HealthCenter,xlab="District",ylab="Health centers")
+abline(lm(df_reg$total_HealthCenter ~ df_reg$District)) 
+
+
+
+```
+
+Create the realtionship model between Number of district and health center opened
+--Assuming
+H0:b1=0 ,there is no relationship between the number of district and health care center
+H1:b1!=0 ,there is relatiom ship between the two variables
+
+```{r}
+relation <- lm(formula =total_HealthCenter ~ District,data=df_reg)
+
+print(summary(relation))
+
+
+```
+
+Insights:
+Residuals are the difference between observed and the response  value that is predicted  from the model.
+
+2. here from the result three significant star "***" ,means we reject the Null hypothesis that there is no relationship between size of the state and the Health center opened.
+
+3.Intercept Estimation : when district is zero then average value of health center is -2509.85
+4.slope estimated value :given one unit change in district expected change in healthcare is 661.65
+
+5.Standard error for the slope is :59.33 which menas here variablity in coefficient value across the sample ,it is almost 11 times lesser than the coefficient value
+
+6.probablityof coefficient is nearly zero and R2 is .78
+
+7.From all the above point we reject the null hypothesis ,Number of health care opened is ~78 dependent on the size of state
+
+
+
+*******************************************************************************
+
+predict the number of health care opened when the number of district  in a state is 24 and 25
+
+
+```{r}
+new_df <-data.frame(District=c(24,25))
+
+total_hc <- predict(relation,new_df)
+
+print(total_hc)
+
+
+```
+
+****************************************************************************************
+star plot for statewise Data
+
+```{r}
+require(grDevices)
+data(df_StateWiseData)
+palette(rainbow(12, s = 0.6, v = 0.75))
+
+stars(df_StateWiseData[, 1:7], key.loc = c(14, 2),
+      main = "HealthCenters : stars(*, full = F)", full = FALSE)
+
+stars(df_StateWiseData[, 1:7], key.loc = c(14, 1.5),col.segments = 1:nrow(df_StateWiseData) 
+      ,draw.segments = TRUE,
+      main = "HealthCenters
+      : full stars()", flip.labels = TRUE)
+```
+
