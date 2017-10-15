@@ -1,0 +1,68 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(readr)
+
+train <- read.csv("Digit_Recogniser/train.csv")
+test<-read.csv("Digit_Recogniser/test.csv")
+
+head(train[1:10])
+
+
+
+
+```
+```{r}
+#unlist(train[10,-1])
+m=matrix(unlist(train[10,-1]),nrow=28,byrow = F)
+
+#m
+
+image(m,col=grey.colors(255))
+
+
+```
+
+
+```{r}
+rotate<-function(x) t(apply(x,2,rev))
+
+par(mfrow=c(2,3))
+
+lapply(1:6,function(x) image( rotate(matrix(unlist(train[x,-1]),nrow=28,byrow=T)),col=grey.colors(255),xlab = train[x,1]))
+
+
+
+
+
+```
+
+```{r}
+library(h2o)
+
+localH2o=h2o.init(max_mem_size='2g',nthreads=-1)
+train[,1]=as.factor(train[,1])
+train_h2o=as.h2o(train)
+test_h2o=as.h2o(test)
+
+```
+```{r}
+s <-proc.time()
+
+model=h2o.deeplearning(x=2:785,y=1,training_frame = train_h2o,activation = "RectifierWithDropout",input_dropout_ratio = 0.2,hidden_dropout_ratios = c(0.5,0.5),balance_classes = TRUE,hidden = c(100,100),momentum_stable = 0.99,nesterov_accelerated_gradient = T, epochs = 15)
+
+```
+```{r}
+
+h2o.confusionMatrix(model)
+
+```
+
+```{r}
+
+s-proc.time()
+
+
+```
